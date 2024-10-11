@@ -4,85 +4,77 @@ module.exports = router;
 
 const prisma = require('../prisma');
 
-router.get("/", async (req, res, next) => {
-  try {
-    const books = await prisma.book.findMany();
-    res.json(books);
-  } catch (e) {
-    next(e);
-  }
-});
+router
+    .route("/")
+    .get(async (req, res, next) => {
+        try {
+            const books = await prisma.book.findMany();
+            res.json(books);
+        } catch (e) {
+            next(e);
+        }
+    })
+    .post(async (req, res, next) => {
+        const { title } = req.body;
+        if (!title) {
+            return next({ status: 400, message: 'Title must be provided for a new book.'});
+        }
+        try {
+            const book = await prisma.book.create({
+                data: { title }
+            })
+            res.status(201).json(book);
+        }
+        catch (e) {
+            next(e);
+        }
+    });
 
-router.get("/:id", async (req, res, next) => {
-  try {
-    const { id } = req.params;
-    const book = await prisma.book.findUnique({ where: {id: +id } });
-    if (book) {
-        res.json(book);
-    }
-    else {
-        next({ status: 404, message: 'There is no book with that id.'});
-    }
-  } catch (e) {
-    next(e);
-  }
-});
-
-router.put('/:id', async (req, res, next) => {
-    const { id } = req.params;
-    const { title } = req.body;
-
-    if (!title) {
-        return next({ status: 400, message: 'A new title must be provided.'});
-    }
-
+router.param("id", async (req, res, next, id) => {
     try {
         const book = await prisma.book.findUnique({ where: { id: +id } });
-        if (!book) {
-            return next({ status: 404, message: `Book with id ${id} does not exist`});
-        }
-        const updatedBook = await prisma.book.update({
-            where: { id: +id },
-            data: { title: title },
-        });
-        res.json(updatedBook);
-    }
-    catch (e) {
-        next(e);
-    }
-})
-
-router.post('/', async (req, res, next) => {
-    const { title } = req.body;
-    if (!title) {
-        return next({ status: 400, message: 'Title must be provided for a new book.'});
-    }
-    try {
-        const book = await prisma.book.create({
-            data: { title }
-        })
-        res.status(201).json(book);
-    }
-    catch (e) {
-        next(e);
-    }
-})
-
-router.delete('/:id', async (req, res, next) => {
-    try {
-        const { id } = req.params;
-        const book = await prisma.book.findUnique({ where: {id: +id } });
         if (book) {
-            const deleteUser = await prisma.book.delete({
-                where: { id: +id }
+            req.book = book;
+            next();
+        }
+        else {
+            next({ status: 404, message: `Book with id ${id} does not exist.`});
+        }
+    }
+    catch (e) {
+        next(e);
+    }
+})
+
+router
+    .route("/:id")
+    .get(async (req, res) => {
+        res.json(req.book);
+    })
+    .put(async (req, res, next) => {
+        const { title } = req.body;
+        if (!title) {
+            return next({ status: 400, message: 'A new title must be provided.'});
+        }
+        try {
+            const book = await prisma.book.update({
+                where: { id: req.book.id },
+                data: { title },
+            });
+            res.json(book);
+        }
+        catch (e) {
+            next(e);
+        }
+    })
+    .delete(async (req, res, next) => {
+        try {
+            await prisma.book.delete({
+                where: { id: req.book.id }
             })
             res.sendStatus(204);
         }
-        else {
-            next({ status: 404, message: 'There is no book with that id.'});
+        catch (e) {
+            next(e);
         }
-    }
-    catch (e) {
-        next(e);
-    }
-})
+    })
